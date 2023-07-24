@@ -1,20 +1,21 @@
+# %%
 import os
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
-
+# %%
 import sys
 sys.path.append("../")
 import diffoptics as do
-
+# %%
 # initialize a lens
 device = torch.device('cpu')
 lens = do.Lensgroup(device=device)
 
-save_dir = './autodiff_demo/'
+save_dir = '../results/autodiff_demo/'
 if not os.path.exists(save_dir):
     os.mkdir(save_dir)
-
+# %%
 R = 12.7
 surfaces = [
     do.Aspheric(R, 0.0, c=0.05, device=device),
@@ -28,7 +29,7 @@ materials = [
 lens.load(surfaces, materials)
 lens.d_sensor = 25.0
 lens.r_last = 12.7
-
+# %%
 # generate array of rays
 wavelength = torch.Tensor([532.8]).to(device) # [nm]
 R = 10.0 # [mm]
@@ -58,7 +59,7 @@ def compute_Jacobian(ps):
     Js.append(J.cpu().detach().numpy())
     return Js
 
-
+# %%
 N = 20
 cs = np.linspace(0.045, 0.063, N)
 Iss = []
@@ -126,3 +127,4 @@ names = [
     'J',
     'flow'
 ]
+# %%
