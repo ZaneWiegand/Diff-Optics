@@ -1,14 +1,14 @@
+# %%
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
-
+# %%
 import sys
 sys.path.append("../")
 import diffoptics as do
-
-
+# %%
 device = torch.device('cuda')
-
+# %%
 # initialize a lens
 def init():
     lens = do.Lensgroup(device=device)
@@ -61,27 +61,27 @@ def ours_new(network_func, rays):
     print("derivatives: {}".format(grads))
     torch.cuda.empty_cache()
     return float(torch.cuda.memory_allocated() / (1024 * 1024))
-
+# %%
 # Initialize a lens
 lens = init()
-
+# %%
 # generate array of rays
 wavelength = torch.Tensor([532.8]).to(device) # [nm]
 
 def prepare_rays(view):
     ray = lens.sample_ray(wavelength.item(), view=view, M=2000+1, sampling='grid')
     return ray
-
+# %%
 # define a network
 torch.manual_seed(0)
 I_ref = torch.rand(lens.film_size, device=device)
 def network_func(I):
     return ((I - I_ref)**2).mean()
-
+# %%
 # timings
 start = torch.cuda.Event(enable_timing=True)
 end = torch.cuda.Event(enable_timing=True)
-
+# %%
 # compares
 views = [1, 3, 5, 7, 9, 11, 13, 15]
 max_views = len(views)
@@ -118,8 +118,7 @@ for i, num_views in enumerate(views):
     torch.cuda.synchronize()
     print("Ours (adjoint-based) time: {:.3f} s".format(start.elapsed_time(end)*1e-3))
     time[i,1] = start.elapsed_time(end)
-
-
+# %%
 # show results
 fig = plt.figure()
 plt.plot(num_rayss, time, '-o')

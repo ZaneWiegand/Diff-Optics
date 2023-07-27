@@ -1,19 +1,20 @@
+# %%
 import os
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
 from matplotlib.image import imread, imsave
 from skimage.transform import resize
-
+# %%
 import sys
 sys.path.append("../")
 import diffoptics as do
-
+# %%
 # initialize a lens
 device = do.init()
 # device = torch.device('cpu')
 lens = do.Lensgroup(device=device)
-
+# %%
 # construct freeform optics
 R = 25.4
 ns = [256, 256]
@@ -27,28 +28,28 @@ materials = [
     do.Material('air')
 ]
 lens.load(surfaces, materials)
-
+# %%
 # set scene geometry
 D = torch.Tensor([50.0]).to(device) # [mm]
 wavelength = torch.Tensor([532.8]).to(device) # [nm]
-
+# %%
 # example image
 filename = 'einstein'
 img_org = imread('./images/' + filename + '.jpg') # assume image is grayscale
 if img_org.mean() > 1.0:
     img_org = img_org / 255.0
-
+# %%
 # downsample the image
 NN = 2
 img_org = img_org[::NN,::NN]
 N_max = 128
 img_org = img_org[:N_max,:N_max]
-
+# %%
 # mark differentiable variables
 lens.surfaces[1].c.requires_grad = True
-
+# %%
 # create save dir
-savepath = './einstein_pyramid/'
+savepath = '../results/einstein_pyramid/'
 if not os.path.exists(savepath):
     os.mkdir(savepath)
 
@@ -154,7 +155,7 @@ def caustic(N, pyramid_i, lr=1e-3, maxit=100):
         return I_final / spp, I_ref, ls
     else:
         return I.cpu().detach().numpy(), None, ls
-
+# %%
 pyramid_levels = 2
 for i in range(pyramid_levels, -1, -1):
     N = int(N_max/(2**i))
@@ -166,7 +167,7 @@ for i in range(pyramid_levels, -1, -1):
 
 imsave(savepath + "/I_target.png", I_ref, vmin=0.0, vmax=1.0, cmap='gray')
 imsave(savepath + "/I_final.png", I_final, vmin=0.0, vmax=1.0, cmap='gray')
-
+# %%
 # final results
 plt.imshow(I_final, cmap='gray')
 plt.title('Final caustic image')
@@ -176,7 +177,7 @@ fig, ax = plt.subplots()
 ax.plot(ls, 'k-o', linewidth=2)
 ax.set_xlabel('iteration')
 ax.set_ylabel('loss')
-fig.savefig("ls.pdf", bbox_inches='tight')
+fig.savefig(savepath + "/ls.pdf", bbox_inches='tight')
 plt.title('Loss')
 
 S = lens.surfaces[1].mesh().cpu().detach().numpy()
@@ -190,4 +191,3 @@ plt.imshow(S, cmap='jet')
 plt.colorbar()
 plt.title('Optimized phase plate height [mm]')
 plt.show()
-
