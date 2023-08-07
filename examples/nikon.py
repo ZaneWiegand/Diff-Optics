@@ -132,7 +132,7 @@ fig, ax = plt.subplots(figsize=(12,6))
 ax.semilogy(out['ls'], 'k-o', linewidth=3)
 plt.xlabel('iteration')
 plt.ylabel('error function')
-plt.savefig("./ls_nikon.pdf", bbox_inches='tight')
+plt.savefig("./results/ls_nikon.pdf", bbox_inches='tight')
 # %%
 def save_fig(xs, string):
     fig, ax = plt.subplots(figsize=(3,1.5))
