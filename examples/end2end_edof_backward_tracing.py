@@ -1,25 +1,26 @@
+# %%
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
 from pathlib import Path
 from tqdm import tqdm
 from datetime import datetime
-
+# %%
 import sys
 sys.path.append("../")
 import diffoptics as do
 from utils_end2end import dict_to_tensor, tensor_to_dict, load_deblurganv2, ImageFolder
 torch.manual_seed(0)
-
+# %%
 # Initialize a lens
 device = torch.device('cuda')
 lens = do.Lensgroup(device=device)
-
+# %%
 # Load optics
 lens.load_file(Path('./lenses/end2end/end2end_edof.txt')) # norminal design
 lens.plot_setup2D()
 [surface.to(device) for surface in lens.surfaces]
-
+# %%
 # set sensor pixel size and film size
 downsample_factor = 4     # downsampled for run
 pixel_size = downsample_factor * 3.45e-3 # [mm]
@@ -27,7 +28,7 @@ film_size = [512 // downsample_factor, 512 // downsample_factor]
 lens.prepare_mts(pixel_size, film_size)
 print('Check your lens:')
 print(lens)
-
+# %%
 # sample wavelengths in [nm]
 wavelengths = [656.2725, 587.5618, 486.1327]
 
@@ -74,7 +75,7 @@ def render_gt(screen: do.Screen, images: list[torch.Tensor]) -> torch.Tensor:
         Is.append(I)
     return torch.stack(Is, axis=-1)
 
-
+# %%
 ## Set differentiable optical parameters
 # XY_surface = (
 #     a[0] +
@@ -95,7 +96,7 @@ for diff_para, key in zip(diff_parameters, learning_rates.keys()):
     diff_para.requires_grad = True
 diff_parameter_labels = learning_rates.keys()
 
-
+# %%
 ## Create network
 net = load_deblurganv2()
 net.prepare()
@@ -105,13 +106,13 @@ current_parameters = [x.detach().cpu().numpy() for x in diff_parameters]
 print('Current optical parameters are:')
 for x, label in zip(current_parameters, diff_parameter_labels):
     print('-- lens.{}: {}'.format(label, x))
-
+# %%
 # Training dataset
 train_path = './training_dataset/'
 train_dataloader = torch.utils.data.DataLoader(ImageFolder(train_path), batch_size=1, shuffle=False)
 it = iter(train_dataloader)
 image = next(it).squeeze().to(device)
-
+# %%
 # Training settings
 settings = {
     'spp_forward': 100,             # Rays per pixel for forward
@@ -133,7 +134,7 @@ def wrapper_func(screen, images, squeezed_diff_parameters, diff_parameters, diff
         exec('lens.{} = unpacked_diff_parameters[{}]'.format(label, idx))
     return render(screen, images, settings['spp_forward'])
 
-
+# %%
 # Physical parameters for the screen
 zs = [8e3, 6e3, 4.5e3] # [mm]
 pixelsizes = [0.1 * z/6e3 for z in zs] # [mm]

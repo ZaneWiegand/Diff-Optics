@@ -139,7 +139,7 @@ def save(I_mea, Is):
     plt.imsave(str(opath / 'I_mea.jpg'), crop(I_mea), vmin=0, vmax=np.maximum(I_mea.max(), Is[-1].max()), cmap='gray')
 
 
-save(I_mea, out['Is'])
+# save(I_mea, out['Is'])
 # %%
 fig = plt.figure()
 plt.plot(out['ls'], 'k-o')

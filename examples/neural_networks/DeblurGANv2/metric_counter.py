@@ -2,7 +2,7 @@ import logging
 from collections import defaultdict
 
 import numpy as np
-from tensorboardX import SummaryWriter
+from torch.utils.tensorboard import SummaryWriter
 
 WINDOW_SIZE = 100
 

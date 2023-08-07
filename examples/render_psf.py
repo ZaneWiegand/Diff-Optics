@@ -1,30 +1,31 @@
+# %%
 import numpy as np
 import torch
 import matplotlib.pyplot as plt
 from pathlib import Path
 from tqdm import tqdm
-
+# %%
 import sys
 sys.path.append("../")
 import diffoptics as do
-
+# %%
 # initialize a lens
 device = torch.device('cuda')
 lens = do.Lensgroup(device=device)
-
+# %%
 # load optics
 lens.load_file(Path('./lenses/DoubleGauss/US02532751-1.txt'))
-
+# %%
 # sensor area
 pixel_size = 6.45e-3 # [mm]
 film_size = torch.tensor([1200, 1600], device=device)
 R_square = film_size * pixel_size
-
+# %%
 # generate array of rays
 wavelength = 532.8 # [nm]
 R = 5.0 # [mm]
 # lens.plot_setup2D()
-
+# %%
 def render_psf(I, p):
     # compute shifts and do linear interpolation
     uv = (p + R_square/2) / pixel_size
@@ -76,13 +77,13 @@ def render(o_obj, M, rep_count):
         ps = lens.trace_to_sensor(rays, ignore_invalid=True)
         I = render_psf(I, ps[..., :2])
     return I / rep_count
-
+# %%
 # PSF rendering parameters
 x_max_halfangle = 10 # [deg]
 y_max_halfangle = 7.5 # [deg]
 Nx = 2 * 8 + 1
 Ny = 2 * 6 + 1
-
+# %%
 # sampling parameters
 M = 1001
 rep_count = 1
@@ -98,10 +99,10 @@ def render_at_depth(z):
             I_psf = render(o_obj, M, rep_count)
             I_psf_all = I_psf_all + I_psf
     return I_psf_all
-
+# %%
 # render PSF at different depths
 zs = [-1e4, -7e3, -5e3, -3e3, -2e3, -1.5e3, -1e3]
-savedir = Path('./rendered_psfs')
+savedir = Path('../results/rendered_psfs')
 savedir.mkdir(exist_ok=True, parents=True)
 I_psfs = []
 for z in zs:

@@ -50,7 +50,7 @@ def plot_layout(string):
     ax, fig = lens.plot_setup2D_with_trace(views, wavelengths[1], M=5, entrance_pupil=True)
     ax.axis('off')
     ax.set_title("")
-    fig.savefig("layout_trace_" + string + "_" + datetime.now().strftime('%Y%m%d-%H%M%S-%f') + ".pdf", bbox_inches='tight')
+    fig.savefig("../results/nikon/layout_trace_" + string + "_" + datetime.now().strftime('%Y%m%d-%H%M%S-%f') + ".pdf", bbox_inches='tight')
 
 M = 31
 def render(verbose=False, entrance_pupil=False):
@@ -132,7 +132,7 @@ fig, ax = plt.subplots(figsize=(12,6))
 ax.semilogy(out['ls'], 'k-o', linewidth=3)
 plt.xlabel('iteration')
 plt.ylabel('error function')
-plt.savefig("./results/ls_nikon.pdf", bbox_inches='tight')
+plt.savefig("../results/nikon/ls_nikon.pdf", bbox_inches='tight')
 # %%
 def save_fig(xs, string):
     fig, ax = plt.subplots(figsize=(3,1.5))
@@ -144,7 +144,7 @@ def save_fig(xs, string):
     plt.ylim([0.08, 50])
     plt.xticks([0,1,2], ['656.27', '587.56', '486.13'])
     plt.yticks([0.1,1,10,50], ['0.1', '1', '10', '50'])
-    fig.savefig("./rms_" + string + "_nikon.pdf", bbox_inches='tight')
+    fig.savefig("../results/nikon/rms_" + string + "_nikon.pdf", bbox_inches='tight')
 # %%
 save_fig(rms_init * 1e3, "init")
 save_fig(rms_org * 1e3, "org")
