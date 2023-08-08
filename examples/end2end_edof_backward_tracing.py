@@ -5,6 +5,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 from tqdm import tqdm
 from datetime import datetime
+import shutil
 # %%
 import sys
 sys.path.append("../")
@@ -101,6 +102,9 @@ diff_parameter_labels = learning_rates.keys()
 net = load_deblurganv2()
 net.prepare()
 
+folder_path = 'fpn'
+shutil.rmtree(folder_path)
+
 print('Initial:')
 current_parameters = [x.detach().cpu().numpy() for x in diff_parameters]
 print('Current optical parameters are:')
@@ -125,7 +129,7 @@ settings = {
 }
 
 if settings['savefig']:
-    opath = Path('end2end_output') / str(datetime.now().strftime("%Y-%m-%d-%H-%M-%S"))
+    opath = Path('../results/end2end_output') / str(datetime.now().strftime("%Y-%m-%d-%H-%M-%S"))
     opath.mkdir(parents=True, exist_ok=True)
 
 def wrapper_func(screen, images, squeezed_diff_parameters, diff_parameters, diff_parameter_labels):
