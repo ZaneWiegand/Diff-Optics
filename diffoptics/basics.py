@@ -2,7 +2,7 @@ from enum import Enum
 import torch
 import numpy as np
 
-
+#! 类似格式规范的类？
 class PrettyPrinter():
     def __str__(self):
         lines = [self.__class__.__name__ + ':']
@@ -37,8 +37,8 @@ class Ray(PrettyPrinter):
     """
     Definition of a geometric ray.
 
-    - o is the ray origin
-    - d is the ray direction (normalized)
+    - o is the ray origin #! 光线起点
+    - d is the ray direction (normalized) #! 光线方向
     """
     def __init__(self, o, d, wavelength, device=torch.device('cpu')):
         self.o = o
@@ -50,8 +50,8 @@ class Ray(PrettyPrinter):
         self.maxt = 1e5  # [mm]
         self.to(device)
 
-    def __call__(self, t):
-        return self.o + t[..., None] * self.d
+    def __call__(self, t): #! call 函数使得实例（对象）可以被当作函数对待，可以传入参数并调用它们
+        return self.o + t[..., None] * self.d #! 传播了 t 距离后，光线到达的坐标位置
 
 
 class Transformation(PrettyPrinter):
@@ -72,9 +72,11 @@ class Transformation(PrettyPrinter):
             self.t = torch.Tensor(t)
 
     def transform_point(self, o):
+        #! 有待继续思考：o 是光线在上一个面的起点，t 是传输向量？
         return torch.squeeze(self.R @ o[..., None]) + self.t
 
     def transform_vector(self, d):
+        #! 有待继续思考：d 是光线在上一个面的方向余弦？
         return torch.squeeze(self.R @ d[..., None])
     
     def transform_ray(self, ray):
@@ -176,7 +178,7 @@ class Material(PrettyPrinter):
     
     The following follows the simple formula that
 
-    n(\lambda) = A + B / \lambda^2
+    n(\lambda) = A + B / \lambda^2 #! 根据 Cauchy's equation 计算不同波长的折射率
 
     where the two constants A and B can be computed from nD (index at 589.3 nm) and V (abbe number). 
     """
@@ -234,11 +236,12 @@ class Material(PrettyPrinter):
         self.A, self.B = self._lookup_material()
 
     def ior(self, wavelength):
-        """Computes index of refraction of a given wavelength (in [nm])"""
+        """Computes index of refraction of a given wavelength (in [nm])""" #! 根据柯西折射率公式计算折射率
         return self.A + self.B / wavelength**2
 
     @staticmethod
     def nV_to_AB(n, V):
+        #! 这里公式转换的依据是柯西折射率公式和阿贝数的定义式
         def ivs(a): return 1./a**2
         lambdas = [656.3, 589.3, 486.1]
         B = 0.0 if V == 0 else (n - 1) / V / ( ivs(lambdas[2]) - ivs(lambdas[0]) )
@@ -250,6 +253,7 @@ class Material(PrettyPrinter):
         if isinstance(out, list):
             n, V = out
         elif out is None:
+            #! 如果输入玻璃牌号，则读出 n 和 V
             # try parsing input as a n/V pair
             tmp = self.name.split('/')
             n, V = float(tmp[0]), float(tmp[1])
@@ -285,7 +289,7 @@ def init():
     return device
 
 def length2(d):
-    return torch.sum(d**2, axis=-1)
+    return torch.sum(d**2, axis=-1) #! 返回 dx^2+dy^2+dz^2
 
 def length(d):
     return torch.sqrt(length2(d))
@@ -303,6 +307,8 @@ def set_zeros(x, valid=None):
 def rodrigues_rotation_matrix(k, theta): # theta: [rad]
     """
     This function implements the Rodrigues rotation matrix.
+    #! 罗德里格旋转公式，是一个向量绕旋转轴旋转给定角度后，得到的新向量的计算公式
+    https://en.wikipedia.org/wiki/Rodrigues%27_rotation_formula
     """
     # cross-product matrix
     kx, ky, kz = k[0], k[1], k[2]

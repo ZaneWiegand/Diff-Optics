@@ -38,8 +38,8 @@ class Lensgroup(Endpoint):
     The sum of the shift and the origin is equal to the Lensgroup's origin.
     
     There are two configurations for ray tracing: forward and backward.
-    - In the forward mode, rays begin at the surface with "d = 0" and propagate along the +z axis, e.g. from scene to image plane.
-    - In the backward mode, rays begin at the surface with "d = d_max" and propagate along the -z axis, e.g. from image plane to scene.
+    # !- In the forward mode, rays begin at the surface with "d = 0" and propagate along the +z axis, e.g. from scene to image plane.
+    # !- In the backward mode, rays begin at the surface with "d = d_max" and propagate along the -z axis, e.g. from image plane to scene.
     """
     def __init__(self, origin=np.zeros(3), shift=np.zeros(3), theta_x=0., theta_y=0., theta_z=0., device=torch.device('cpu')):
         self.origin = torch.Tensor(origin).to(device)
@@ -54,8 +54,8 @@ class Lensgroup(Endpoint):
         self.materials = []
         
         # Sensor properties
-        self.pixel_size = 6.45 # [um]
-        self.film_size = [640, 480] # [pixel]
+        self.pixel_size = 6.45 
+        self.film_size = [640, 480] #! [pixel] 像素数
 
         Endpoint.__init__(self, self._compute_transformation(), device)
 
@@ -64,7 +64,7 @@ class Lensgroup(Endpoint):
 
     def load_file(self, filename: pathlib.Path):
         self.surfaces, self.materials, self.r_last, d_last = self.read_lensfile(str(filename))
-        self.d_sensor = d_last + self.surfaces[-1].d
+        self.d_sensor = d_last + self.surfaces[-1].d #! d_sensor 即光学系统第一面到最终像面的距离
         self._sync()
 
     def load(self, surfaces: list, materials: list):
@@ -83,19 +83,23 @@ class Lensgroup(Endpoint):
     
     def _compute_transformation(self, _x=0.0, _y=0.0, _z=0.0):
         # we compute to_world transformation given the input positional parameters (angles)
+        #! 罗德里格旋转公式，给定旋转轴，旋转角度，可以计算出旋转矩阵
         R = ( rodrigues_rotation_matrix(torch.Tensor([1, 0, 0]).to(self.device), torch.deg2rad(self.theta_x+_x)) @ 
               rodrigues_rotation_matrix(torch.Tensor([0, 1, 0]).to(self.device), torch.deg2rad(self.theta_y+_y)) @ 
               rodrigues_rotation_matrix(torch.Tensor([0, 0, 1]).to(self.device), torch.deg2rad(self.theta_z+_z)) )
+        #! 旋转矩阵和旋转向量相乘，再加上原点坐标
         t = self.origin + R @ self.shift
+        #! R是旋转矩阵，t是旋转后得到的矢量
         return Transformation(R, t)
     
-    def _find_aperture(self):
+    def _find_aperture(self): 
         for i in range(len(self.surfaces)-1):
-            if self.materials[i].A < 1.0003 and self.materials[i+1].A < 1.0003: # both are AIR
+            if self.materials[i].A < 1.0003 and self.materials[i+1].A < 1.0003: # both are AIR #! 连着两段空气，则中间是光阑
                 return i
 
     @staticmethod
     def read_lensfile(filename):
+        #! 读取的镜头文件里的 d 指当前面到前一个面的距离
         surfaces = []
         materials = []
         ds = [] # no use for now
@@ -107,14 +111,15 @@ class Lensgroup(Endpoint):
                     line_no += 1 
                 else:
                     ls = line.split()
-                    surface_type, d, r = ls[0], float(ls[1]), float(ls[3])/2
-                    roc = float(ls[2])
-                    if roc != 0: roc = 1/roc
+                    surface_type, d, r = ls[0], float(ls[1]), float(ls[3])/2 #! d 是指厚度，r 是指口径的半径
+                    roc = float(ls[2]) #! 此时 roc 是指曲率半径
+                    if roc != 0: roc = 1/roc #! 此时 roc 是指曲率，如果 roc 为 0，则代表平面
                     materials.append(Material(ls[4]))
                     
                     d_total += d
                     ds.append(d)
 
+                    #! 根据面型种类去surface.append()
                     if surface_type == 'O': # object
                         d_total = 0.
                         ds.pop()
@@ -147,7 +152,7 @@ class Lensgroup(Endpoint):
                         raise NotImplementedError()
                     elif surface_type == 'S': # aspheric surface
                         if len(ls) <= 5:
-                            surfaces.append(Aspheric(r, d_total, roc))
+                            surfaces.append(Aspheric(r, d_total, roc)) #! 注意是 d_total，累加的厚度距离
                         else:
                             ai = []
                             for ac in range(5, len(ls)):
@@ -162,11 +167,11 @@ class Lensgroup(Endpoint):
                         d_total -= d
                         ds.pop()
                         materials.pop()
-                        r_last = r
-                        d_last = d
+                        r_last = r #! 像面的半径
+                        d_last = d #! 后截距
         return surfaces, materials, r_last, d_last
 
-    def reverse(self):
+    def reverse(self): #! 反转？or 蜜汁递归函数，没看懂
         # reverse surfaces
         d_total = self.surfaces[-1].d
         for i in range(len(self.surfaces)):
@@ -505,6 +510,7 @@ class Lensgroup(Endpoint):
     def calc_entrance_pupil(self, view=0.0, R=None):
         angle = np.radians(np.asarray(view))
         
+        #! 先在第一个面上全口径（还有冗余）密集采样，通过光线追迹，再计算有效光线，从而确定入瞳大小
         # maximum radius input
         if R is None:
             with torch.no_grad():
@@ -533,16 +539,16 @@ class Lensgroup(Endpoint):
 
         # find bounding box
         xs, ys = x[valid_map], y[valid_map]
-
+        
         return valid_map, xs, ys
 
     def sample_ray(self, wavelength, view=0.0, M=15, R=None, shift_x=0., shift_y=0., sampling='grid', entrance_pupil=False):
-        angle = np.radians(np.asarray(view))
-        
+        angle = np.radians(np.asarray(view)) #! 角度转换为弧度
+        #! R指采样半径
         # maximum radius input
         if R is None:
             with torch.no_grad():
-                sag = self.surfaces[0].surface(self.surfaces[0].r, 0.0)
+                sag = self.surfaces[0].surface(self.surfaces[0].r, 0.0) # TODO 
                 R = np.tan(angle) * sag + self.surfaces[0].r # [mm]
                 R = R.item()
 
@@ -561,7 +567,7 @@ class Lensgroup(Endpoint):
                 x = xs.mean() + r[None,...] * torch.cos(theta[...,None])
                 y = ys.mean() + r[None,...] * torch.sin(theta[...,None])
         else:
-            if sampling == 'grid':
+            if sampling == 'grid': #! 栅格等间隔采样
                 x, y = torch.meshgrid(
                     torch.linspace(-R, R, M, device=self.device),
                     torch.linspace(-R, R, M, device=self.device),
@@ -573,16 +579,16 @@ class Lensgroup(Endpoint):
                 x = r[None,...] * torch.cos(theta[...,None])
                 y = r[None,...] * torch.sin(theta[...,None])
 
-        p = 2*R / M
+        p = 2*R / M #! p是采样间隔
         x = x + p * shift_x
         y = y + p * shift_y
 
-        o = torch.stack((x,y,torch.zeros_like(x, device=self.device)), axis=2)
+        o = torch.stack((x,y,torch.zeros_like(x, device=self.device)), axis=2) #! 所有采样光线的起点
         d = torch.stack((
-            np.sin(angle)*torch.ones_like(x),
+            np.sin(angle)*torch.ones_like(x), #! x平行于是子午面
             torch.zeros_like(x),
             np.cos(angle)*torch.ones_like(x)), axis=-1
-        )
+        ) #! d 是指方向余弦
         return Ray(o, d, wavelength, device=self.device)
     
     # TODO: merge `sample_ray_fullfield` with `sample_ray`
@@ -632,13 +638,13 @@ class Lensgroup(Endpoint):
         ones = torch.ones_like(x)
         zeros = torch.zeros_like(x)
         
-        o = torch.stack((x,zeros,zeros), axis=1)
+        o = torch.stack((x,zeros,zeros), axis=1) #! o 是起点坐标
         angle = torch.Tensor(np.asarray(np.radians(view))).to(self.device)
         d = torch.stack((
             torch.sin(angle)*ones,
             zeros,
             torch.cos(angle)*ones), axis=-1
-        )
+        ) #! d 是方向余弦
         return Ray(o, d, wavelength, device=self.device)
     
     def find_ray_2D(self, view=0.0, y=0.0):
@@ -722,7 +728,7 @@ class Lensgroup(Endpoint):
         t = (self.d_sensor - ray_final.o[...,2]) / ray_final.d[...,2]
         p = ray_final(t)
 
-        R_sensor = [self.film_size[i] * self.pixel_size/2 for i in range(2)]
+        R_sensor = [self.film_size[i] * self.pixel_size/2 for i in range(2)] #! 像面的半高和半宽
         valid = valid & (
             (-R_sensor[0] <= p[...,0]) & (p[...,0] <= R_sensor[0]) &
             (-R_sensor[1] <= p[...,1]) & (p[...,1] <= R_sensor[1])
@@ -732,15 +738,16 @@ class Lensgroup(Endpoint):
         J = irr
         p = p[valid]
 
-        # compute shift and find nearest pixel index
-        u = (p[...,0] + R_sensor[0]) / self.pixel_size
-        v = (p[...,1] + R_sensor[1]) / self.pixel_size
-        
+        # compute shift and find nearest pixel index #! 进行坐标转换，获得追迹点的像素坐标
+        u = (p[...,0] + R_sensor[0]) / self.pixel_size #! p[...,0] 代表 p 的所有点的 x 坐标
+        v = (p[...,1] + R_sensor[1]) / self.pixel_size #! p[...,1] 代表 p 的所有点的 y 坐标
+        #! 向下取整
         index_l = torch.stack(
             (torch.clamp(torch.floor(u).long(), min=0, max=self.film_size[0]-1),
             torch.clamp(torch.floor(v).long(), min=0, max=self.film_size[1]-1)),
             axis=-1
-        )
+        ) 
+        #! 向上取整
         index_r = torch.stack(
             (torch.clamp(index_l[...,0] + 1, min=0, max=self.film_size[0]-1),
             torch.clamp(index_l[...,1] + 1, min=0, max=self.film_size[1]-1)),
@@ -750,8 +757,9 @@ class Lensgroup(Endpoint):
         w_l = 1.0 - w_r
         del u, v
 
-        # compute image
+        # compute image #! 将 p 舍入到最近的四个相邻像素，并对相应的四个像素值进行线性加权
         I = torch.zeros(*self.film_size, device=self.device)
+        #! index_input(a, index, val) 的作用是将 val 值填入到 a 的 index 索引位置
         I = torch.index_put(I, (index_l[...,0],index_l[...,1]), w_l[...,0]*w_l[...,1]*J, accumulate=True)
         I = torch.index_put(I, (index_r[...,0],index_l[...,1]), w_r[...,0]*w_l[...,1]*J, accumulate=True)
         I = torch.index_put(I, (index_l[...,0],index_r[...,1]), w_l[...,0]*w_r[...,1]*J, accumulate=True)
@@ -773,14 +781,14 @@ class Lensgroup(Endpoint):
         ray_final, valid = self.trace(ray)
 
         # intersecting sensor plane
-        t = (self.d_sensor - ray_final.o[...,2]) / ray_final.d[...,2]
+        t = (self.d_sensor - ray_final.o[...,2]) / ray_final.d[...,2] #! 最后一个面的交点到像面的传播距离
         p = ray_final(t)
         if ignore_invalid:
             p = p[valid]
         else:
             if len(p.shape) < 2:
                 return p
-            p = torch.reshape(p, (np.prod(p.shape[:-1]), 3))
+            p = torch.reshape(p, (np.prod(p.shape[:-1]), 3)) #! 将 M*M*3 的三维矩阵转换为 M^2*3 的二维矩阵
         return p
         
     def trace_to_sensor_r(self, ray, ignore_invalid=False):
@@ -788,6 +796,7 @@ class Lensgroup(Endpoint):
         Trace rays towards intersecting onto the sensor plane, with records.
         """
         # trace rays
+        #! Ray 的属性主要有两个，一是起点，二是方向余弦
         ray_final, valid, oss = self.trace_r(ray)
 
         # intersecting sensor plane
@@ -819,7 +828,7 @@ class Lensgroup(Endpoint):
         ):
             self.update()
 
-        # in local
+        # in local 
         ray_in = self.to_object.transform_ray(ray)
 
         valid, ray_out = self._trace(ray_in, stop_ind=stop_ind, record=False)
@@ -1024,7 +1033,7 @@ class Lensgroup(Endpoint):
             else:
                 eta_ = eta
         
-        cosi = torch.sum(wi * n, axis=-1)
+        cosi = torch.sum(wi * n, axis=-1) #! cosi 是方向余弦和表面法线的点积 
 
         if approx:
             tmp = 1. - eta**2 * (1. - cosi)
@@ -1035,7 +1044,7 @@ class Lensgroup(Endpoint):
             
             # 1. get valid map; 2. zero out invalid points; 3. add eps to avoid NaN grad at cost2==0.
             valid = cost2 > 0.
-            cost2 = torch.clamp(cost2, min=1e-8)
+            cost2 = torch.clamp(cost2, min=1e-8) #! clamp 的作用是，下界归一成 1e-8
             tmp = torch.sqrt(cost2)
 
             # here we do not have to do normalization because if both wi and n are normalized,
@@ -1046,6 +1055,8 @@ class Lensgroup(Endpoint):
     def _trace(self, ray, stop_ind=None, record=False):
         if stop_ind is None:
             stop_ind = len(self.surfaces)-1  # last index to stop
+        
+        #! 判断是否为前向传播，返回 True 或 False
         is_forward = (ray.d[..., 2] > 0).all()
 
         # TODO: Check ray origins to ensure valid ray intersections onto the surfaces
@@ -1056,7 +1067,7 @@ class Lensgroup(Endpoint):
 
     def _forward_tracing(self, ray, stop_ind, record):
         wavelength = ray.wavelength
-        dim = ray.o[..., 2].shape
+        dim = ray.o[..., 2].shape #! 单波长单视场情况下，代表采样光线的条数
         
         if record:
             oss = []
@@ -1065,14 +1076,14 @@ class Lensgroup(Endpoint):
 
         valid = torch.ones(dim, device=self.device).bool()
         for i in range(stop_ind+1):
-            eta = self.materials[i].ior(wavelength) / self.materials[i+1].ior(wavelength)
+            eta = self.materials[i].ior(wavelength) / self.materials[i+1].ior(wavelength) #! 相对折射率
 
-            # ray intersecting surface
-            valid_o, p = self.surfaces[i].ray_surface_intersection(ray, valid)
+            # ray intersecting surface #! 计算光线与面的交点
+            valid_o, p = self.surfaces[i].ray_surface_intersection(ray, valid)  #! valid 即为之后的 active，计算出光线与光学面的交点 p
 
             # get surface normal and refract 
-            n = self.surfaces[i].normal(p[..., 0], p[..., 1])
-            valid_d, d = self._refract(ray.d, -n, eta)
+            n = self.surfaces[i].normal(p[..., 0], p[..., 1])  #! n 是归一化的表面法线矢量
+            valid_d, d = self._refract(ray.d, -n, eta) #! 计算得到新的光线方向余弦 d
             
             # check validity
             valid = valid & valid_o & valid_d
@@ -1235,7 +1246,7 @@ class Surface(PrettyPrinter):
         if self.is_square:
             return torch.max(torch.abs(p) - self.r, axis=-1)[0]
         else: # is round
-            return length2(p) - self.r**2
+            return length2(p) - self.r**2 #! p 的坐标范围在面口径之内
     
     def is_valid(self, p):
         """
@@ -1259,8 +1270,8 @@ class Surface(PrettyPrinter):
         """
         solution_found, local = self.newtons_method(ray.maxt, ray.o, ray.d)
         
-        valid_o = solution_found & self.is_valid(local[...,0:2])
-        if active is not None:
+        valid_o = solution_found & self.is_valid(local[...,0:2]) #! 取 local 的 ox 与 oy
+        if active is not None: #! _forward_tracing 中的 valid
             valid_o = active & valid_o
         return valid_o, local
 
@@ -1278,8 +1289,8 @@ class Surface(PrettyPrinter):
 
         Args:
             maxt: The maximum travel distance of a single ray.
-            o: The origins of the rays.
-            D: The directional vector of the rays.
+            #! o: The origins of the rays.
+            #! D: The directional vector of the rays.
             option: The computing modes.
 
         Returns:
@@ -1287,14 +1298,14 @@ class Surface(PrettyPrinter):
             p: The computed intersection point(s).
         """
         
-        # pre-compute constants
+        # pre-compute constants #! (ox,oy,oz) 是起点，(dx,dy,dz) 是方向余弦
         ox, oy, oz = (o[..., i].clone() for i in range(3))
         dx, dy, dz = (D[..., i].clone() for i in range(3))
         A = dx**2 + dy**2
         B = 2 * (dx * ox + dy * oy)
         C = ox**2 + oy**2
 
-        # initial guess of t
+        # initial guess of t #! d 是当前面到前一个面的距离
         t0 = (self.d - oz) / dz
         
         if option == 'explicit':
@@ -1308,15 +1319,16 @@ class Surface(PrettyPrinter):
                 )
                 s_derivatives_dot_D = self.surface_and_derivatives_dot_D(
                     t, dx, dy, dz, ox, oy, t_delta * dz, A, B, C
-                )[1]
-            t = t0 + t_delta
-            t = t - (self.g(ox + t * dx, oy + t * dy) + self.h(oz + t * dz) + self.d)/s_derivatives_dot_D
+                )[1] #! t 是光线传播的距离，t_delta * dz 是光线传播距离在 z 方向的投影距离，s_derivatives_dot_D 是 d_residual/d_t_delta
+            t = t0 + t_delta #! 得到带有梯度的 t*
+            #! 如果注释掉下一行，产生的影响？？
+            t = t - (self.g(ox + t * dx, oy + t * dy) + self.h(oz + t * dz) + self.d)/s_derivatives_dot_D #! 再利用牛顿法进行一次迭代
         else:
             raise Exception('option={} is not available!'.format(option))
 
-        p = o + t[..., None] * D
+        p = o + t[..., None] * D #! t[..., None] 的意思是？？
 
-        return valid, p
+        return valid, p #! p 是追迹后光线与表面的交点
 
     def newtons_method_impl(self, maxt, t0, dx, dy, dz, ox, oy, oz, A, B, C):
         """
@@ -1330,7 +1342,7 @@ class Surface(PrettyPrinter):
             t_delta: The incremental change of t at each iteration.
             valid: The updated active mask (if the current ray is physically active in tracing).
         """
-        if oz.numel() < 2:
+        if oz.numel() < 2: #! 返回输入 tensor 中的元素数量
             oz = torch.Tensor([oz.item()]).to(self.device)
         t_delta = torch.zeros_like(oz)
 
@@ -1338,15 +1350,15 @@ class Surface(PrettyPrinter):
         t        = maxt * torch.ones_like(oz)
         residual = maxt * torch.ones_like(oz)
         it = 0
-        while (torch.abs(residual) > self.NEWTONS_TOLERANCE_TIGHT).any() and (it < self.NEWTONS_MAXITER):
+        while (torch.abs(residual) > self.NEWTONS_TOLERANCE_TIGHT).any() and (it < self.NEWTONS_MAXITER): #! 任何一个残差大于阈值，并且还未达到迭代最大次数，则继续迭代求交点 
             it += 1
-            t = t0 + t_delta
+            t = t0 + t_delta #! t_delta 表示 t 的增量
             residual, s_derivatives_dot_D = self.surface_and_derivatives_dot_D(
                 t, dx, dy, dz, ox, oy, t_delta * dz, A, B, C # here z = t_delta * dz
             )
-            t_delta = t_delta - residual / s_derivatives_dot_D
+            t_delta = t_delta - residual / s_derivatives_dot_D #! residual = t_delta * d_residual/d_t_delta
         t = t0 + t_delta
-        valid = (torch.abs(residual) < self.NEWTONS_TOLERANCE_LOOSE) & (t <= maxt)
+        valid = (torch.abs(residual) < self.NEWTONS_TOLERANCE_LOOSE) & (t <= maxt) #! 检验返回来的值是否是正常，即小于 LOOSE 条件，并且传播距离 t 小于给定的最大界限 100000.0
         return t, t_delta, valid
 
     # === Virtual methods (must be overridden)
@@ -1517,27 +1529,28 @@ class Aspheric(Surface):
             self.ai = -self.ai
 
     def surface_derivatives(self, x, y):
-        dsdr2 = 2 * self._dgd(x**2 + y**2)
-        return dsdr2*x, dsdr2*y, -torch.ones_like(x)
+        dsdr2 = 2 * self._dgd(x**2 + y**2) #! z = s(r^2) = ...
+        return dsdr2*x, dsdr2*y, -torch.ones_like(x) #! f = s(r^2) - z, f'_x = s'(r^2)2x, f'_y = s'(r^2)2y, f'_z = -1
 
     def surface_and_derivatives_dot_D(self, t, dx, dy, dz, ox, oy, z, A, B, C):
         #pylint: disable=unused-argument
         # TODO: could be further optimized
-        r2 = A * t**2 + B * t + C
-        return self._g(r2) - z, self._dgd(r2) * (2*A*t + B) - dz
+        r2 = A * t**2 + B * t + C #! 计算的是光线传播 t 距离之后，光线末端到光轴的垂直距离的平方，即r^2
+        return self._g(r2) - z, self._dgd(r2) * (2*A*t + B) - dz #! 第一项即为 residual，第二项为 residual 对 t 的导数
     
     # === Private methods
     def _g(self, r2):
+        #! 计算偶次非球面的 z(r) 值
         tmp = r2*self.c
-        total_surface = tmp / (1 + torch.sqrt(1 - (1+self.k) * tmp*self.c))
+        total_surface = tmp / (1 + torch.sqrt(1 - (1+self.k) * tmp*self.c)) #! 偶次非球面第一项
         higher_surface = 0
         if self.ai is not None:
-            for i in np.flip(range(len(self.ai))):
+            for i in np.flip(range(len(self.ai))): #! 加上 flip 函数进行翻转，从最高次项加起
                 higher_surface = r2 * higher_surface + self.ai[i]
             higher_surface = higher_surface * r2**2
         return total_surface + higher_surface
     
-    def _dgd(self, r2):
+    def _dgd(self, r2): #! 对偶次非球面的 z(r) 值进行求导，将 r^2 视为一个整体
         alpha_r2 = (1 + self.k) * self.c**2 * r2
         tmp = torch.sqrt(1 - alpha_r2) # TODO: potential NaN grad
         total_derivative = self.c * (1 + tmp - 0.5*alpha_r2) / (tmp * (1 + tmp)**2)

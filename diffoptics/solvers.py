@@ -93,7 +93,7 @@ class LM(Optimization):
 
     def __init__(self, lens, diff_parameters_names, lamb, mu=None, option='diag'):
         Optimization.__init__(self, lens, diff_parameters_names)
-        self.lamb = lamb  # damping factor
+        self.lamb = lamb  # damping factor #! 阻尼系数
         self.mu = 2.0 if mu is None else mu  # dampling rate (>1)
         self.option = option
 
@@ -105,7 +105,7 @@ class LM(Optimization):
 
         This function is modified from torch.autograd.functional.jvp().
         """
-
+        #! 用于计算 Jacobian 矩阵，通常有 jvp 和 vjp 两种计算方式，略有区别
         Js = []
         outputs = func()
 

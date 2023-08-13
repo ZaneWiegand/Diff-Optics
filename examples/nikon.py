@@ -149,3 +149,4 @@ def save_fig(xs, string):
 save_fig(rms_init * 1e3, "init")
 save_fig(rms_org * 1e3, "org")
 save_fig(rms_opt * 1e3, "opt")
+# %%
