@@ -191,9 +191,9 @@ class Lensgroup(Endpoint):
             ps_mean = torch.mean(ps, axis=0)
         ps = ps - ps_mean[None,...] # we now use normalized ps
         if squared:
-            return torch.mean(torch.sum(ps**2, axis=-1)), ps/units
+            return torch.mean(torch.sum(ps**2, axis=-1)), ps/units #! 不开平方
         else:
-            return torch.sqrt(torch.mean(torch.sum(ps**2, axis=-1))), ps/units
+            return torch.sqrt(torch.mean(torch.sum(ps**2, axis=-1))), ps/units #! 开平方
 
     def spot_diagram(self, ps, show=True, xlims=None, ylims=None, color='b.', savepath=None):
         """
@@ -548,7 +548,7 @@ class Lensgroup(Endpoint):
         # maximum radius input
         if R is None:
             with torch.no_grad():
-                sag = self.surfaces[0].surface(self.surfaces[0].r, 0.0) # TODO 
+                sag = self.surfaces[0].surface(self.surfaces[0].r, 0.0) #! Sag 即为 z(r)，https://en.wikipedia.org/wiki/Aspheric_lens
                 R = np.tan(angle) * sag + self.surfaces[0].r # [mm]
                 R = R.item()
 
@@ -789,7 +789,7 @@ class Lensgroup(Endpoint):
             if len(p.shape) < 2:
                 return p
             p = torch.reshape(p, (np.prod(p.shape[:-1]), 3)) #! 将 M*M*3 的三维矩阵转换为 M^2*3 的二维矩阵
-        return p
+        return p #! 返回的是探测器上点的坐标
         
     def trace_to_sensor_r(self, ray, ignore_invalid=False):
         """

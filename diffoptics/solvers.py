@@ -25,7 +25,7 @@ class Optimization(PrettyPrinter):
                     exec(
                         'self.lens.{name} = self.lens.{name}.detach()'.format(name=name))
                     exec('self.lens.{}.requires_grad = True'.format(name))
-                exec('self.diff_parameters.append(self.lens.{})'.format(name))
+                exec('self.diff_parameters.append(self.lens.{})'.format(name)) #! 要更新的参数均写进 diff_parameters 里面
             if type(name) is torch.Tensor:  # actual parameter
                 name.requires_grad = True
                 self.diff_parameters.append(name)
